@@ -1,7 +1,7 @@
 #include "CurrentTime.h"
 #include <time.h>
 
-int HH,MM,SS;
+int HH, MM, SS;
 
 void getCurrentTime(void){
   time_t rawtime;
@@ -9,9 +9,9 @@ void getCurrentTime(void){
   time ( &rawtime );
   timeinfo = localtime ( &rawtime );
 
-  HH = timeinfo ->tm_hour;
-  MM = timeinfo ->tm_min;
-  SS = timeinfo ->tm_sec;
+  HH = timeinfo -> tm_hour;
+  MM = timeinfo -> tm_min;
+  SS = timeinfo -> tm_sec;
 }
 
 int getHours(void){
@@ -25,4 +25,10 @@ int getMins(void){
 
 int getSecs(void){
     return SS;
+}
+
+void resetTimer(void) {
+    HH = 0;
+    MM = 0;
+    SS = 0;
 }
