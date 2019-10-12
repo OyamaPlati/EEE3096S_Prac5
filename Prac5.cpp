@@ -147,16 +147,16 @@ void *monitorThread(void *threadargs){
 	string curStr = string(currentHour + ":" + currentMin + ":" + currentSec);
 
 	// Covert Humidity
-	int humValue = analogRead(BASE + 0);
-	float humidity = (humValue * 3.3) / 1024;
+	int humValue = analogRead(BASE + 7);
+	float humidity = (humValue * 3.3) / 1024.0;
 
 	// Convert Temperature
-	int tempValue =  analogRead(BASE + 3);
-	float volts = (tempValue * 3.3) / 1024;
+	int tempValue =  analogRead(BASE + 2);
+	float volts = (tempValue * 3.3) / 1024.0;
 	float temperature = (volts - (500.0 / 1000)) / (10.0 / 1000);
 
 	// Calculate DAC Vout
-	int lightValue = analogRead(BASE + 1);
+	int lightValue = analogRead(BASE + 0);
 	float dacVout = (lightValue / 1024.0) * humidity;
 	int dacValue = (int) (1024 * dacVout) / 3.3;
 
