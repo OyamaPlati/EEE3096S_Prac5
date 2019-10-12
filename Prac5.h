@@ -42,6 +42,6 @@
 // Function definitiions
 int setup_gpio(void);
 int main(void);
-
+bool interval(int, int, int, int, int, int);
 #endif
 

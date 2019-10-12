@@ -15,7 +15,11 @@ int RTC; 			// Holds the RTC instance
 long lastInterruptTime = 0;	// Define start of interrupt time
 
 int tic = 1000;			// Define rate of monitoring. Default 1 second
-int choice = 0;		        // Define frequency (0 = 1s, 1 = 2s and 2 = 3s)
+int choice = 0;		        // Define frequency (0 = 1s, 1 = 2s and 2 = 5s)
+
+int lastAlarmHour = 0;
+int lastAlarmMin = 0;
+int lastAlarmSec = 0;
 
 // Configure interrupts here
 // Use debouncing
@@ -83,37 +87,8 @@ void frequency_isr(void) {
     lastInterruptTime = interruptTime;
 }
 
-/* read SPI data from MCP3008 chip, 8 possible adc channels (0 thru 7)
-int readAdc(int adcChannel)
-{
-    uint8_t buffer[3];
-    int adc;
-    if ((adcChannel > 7) || (adcChannel < 0)) return -1;
-
-    buffe[0] = 1;
-    buffer[1] = (8 + adcChannel) << 4;
-    buffer[2] = 0;
-    wiringPiSPIDataRW(0, buff, 3);
-    adc = ((buffer[1] & 3) << 8) + buffer[2];
-    return adc;
-}
-*/
-
-/*
-void writeDac(int data) {
-    if (data < 0) { data = 0; }
-    else if (data > 1023) { data = 1023; }
-
-    unsigned char upper = ((value >> 6) & 0xff) | 0b0 << 7 | 0b0 << 6 | 0b1 << 5 | 0b1 << 4;
-    unsigned char lower = value << 2 & 0b11111100;
-    wiringPiSPIDataRW(SPI_CHAN[1], upper, 1);
-    wiringPiSPIDataRW(SPI_CHAN[1], lower, 1);
-}
-
-*/
-
 /**
- * Thread that handles reading from ADC
+ * monitorThread that handles reading from ADC
  *
  * You must stop reading from ADC if not monitoring is true (the monitoring is dismissed)
  * When calling the function to read from ADC, take note of the last argument.
@@ -123,9 +98,9 @@ void writeDac(int data) {
  */
 void *monitorThread(void *threadargs){
     for(;;){
-	
+
 	while (!monitoring) continue;
-	
+
         // Read from out from ADC
 	// Fetch the time from the RTC
 	HH = wiringPiI2CReadReg8(RTC, HOUR);
@@ -165,10 +140,18 @@ void *monitorThread(void *threadargs){
 	int dacValue = (int) (1024 * dacVout) / 3.3;
 
 	if ((dacVout < LOWER_LIMIT) || (dacVout > UPPER_LIMIT)) {
-	    if (!dismissed) {
-	        printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, "*");
-	        secPWM(dacValue);
-	    }
+	   if ((interval(hours, mins, secs,
+		lastAlarmHour, lastAlarmMin, lastAlarmSec) == true) || (!dismissed)){
+		secPWM(dacValue);
+		printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, "*");
+		lastAlarmHour = hours;
+		lastAlarmSec = secs;
+		lastAlarmMin = mins;
+	   }
+	   else {
+		secPWM(0);
+	    	printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, " ");
+	   }
 	}
 	else {
 	    secPWM(0);
@@ -183,7 +166,8 @@ void *monitorThread(void *threadargs){
 }
 
 /**
- * PWM on the Seconds LED
+ * secPWM subroutine
+ * PWM on the Alarm LED
  * The LED should have 1024 brightness levels
  * The LED should be "off" at 0 Volts, and fully bright at 3.3 Volts
  *
@@ -191,6 +175,39 @@ void *monitorThread(void *threadargs){
 void secPWM(int units){
     softPwmCreate(SECS, 0, 1023);
     softPwmWrite(SECS, units);
+}
+
+/**
+ * makeSound subroutine alarm sounded if last alarm was sounded less than 3 minutes prior
+ *
+ */
+bool interval (int hour1, int minute1, int second1,
+		int hour2, int minute2, int second2) {
+    int diff_hour, diff_minute, diff_second;
+
+    if(second2 > second1) {
+      minute1--;
+      second1 += 60;
+   }
+
+   diff_second = second1 - second2;
+
+   if(minute2 > minute1) {
+      hour1--;
+      minute1 += 60;
+   }
+
+   diff_minute = minute1 - minute2;
+   diff_hour = hour1 - hour2;
+
+   if ((diff_hour >= 0) && (diff_second >= 0) && (diff_minute >= 3)) {
+
+	return true;
+   }
+   else {
+
+	return false;
+   }
 }
 
 /**
