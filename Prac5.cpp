@@ -14,6 +14,10 @@ int RTC; 			// Holds the RTC instance
 
 long lastInterruptTime = 0;	// Define start of interrupt time
 
+int lastAlarmTime = 0;		// Define start of alarm time
+int tic = 1000;			// Define rate of monitoring. Default 1 second
+int choice = 0;		        // Define frequency (0 = 1s, 1 = 2s and 2 = 3s)
+
 // Configure interrupts here
 // Use debouncing
 
@@ -35,11 +39,9 @@ void start_stop_isr(void){
  * dismiss_isr subroutine to dismiss the alarm
  *
  */
-
 void dismiss_isr(void){
     long interruptTime = millis();
     if (interruptTime - lastInterruptTime > 200){
-        printf("Interrupt DISMISS triggered\n");
         dismissed = !dismissed;
     }
     lastInterruptTime = interruptTime;
@@ -66,8 +68,18 @@ void reset_isr(void) {
 void frequency_isr(void) {
     long interruptTime = millis();
     if (interruptTime - lastInterruptTime > 200){
-        printf("Interrupt FREQUENCY triggered\n");
-	// Write the logic here
+        switch(choice) {
+	    case 0:
+		tic = 1000;
+		break;
+	    case 1:
+		tic = 2000;
+		break;
+	    case 2:
+		tic = 5000;
+		break;
+	}
+	choice = (choice + 1) % 3;
     }
     lastInterruptTime = interruptTime;
 }
@@ -100,8 +112,7 @@ int readadc(int adcChannel)
 void *monitorThread(void *threadargs){
     for(;;){
         // Read from out from ADC
-
-	//Fetch the time from the RTC
+	// Fetch the time from the RTC
 	HH = wiringPiI2CReadReg8(RTC, HOUR);
 	MM = wiringPiI2CReadReg8(RTC, MIN);
 	SS = wiringPiI2CReadReg8(RTC, SEC);
@@ -139,19 +150,15 @@ void *monitorThread(void *threadargs){
 
 	if ((dacVout < LOWER_LIMIT) || (dacVout > UPPER_LIMIT)) {
 	    if (!dismissed) {
-		printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, "*");
-	    }
-	    else if (dismissed){
-	        printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, " ");
+	        printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, "*");
 	    }
 	}
 	else {
-	     printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, " ");
+	    printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, " ");
 	}
 
-
 	// Using a delay to make our program "less CPU hungry"
-	delay(1000);
+	delay(tic);
     }
 
     pthread_exit(NULL);
