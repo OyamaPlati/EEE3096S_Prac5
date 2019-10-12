@@ -14,7 +14,6 @@ int RTC; 			// Holds the RTC instance
 
 long lastInterruptTime = 0;	// Define start of interrupt time
 
-int lastAlarmTime = 0;		// Define start of alarm time
 int tic = 1000;			// Define rate of monitoring. Default 1 second
 int choice = 0;		        // Define frequency (0 = 1s, 1 = 2s and 2 = 3s)
 
@@ -46,7 +45,6 @@ void dismiss_isr(void){
     }
     lastInterruptTime = interruptTime;
 }
-
 
 /**
  * reset_isr subroutine to clear console and reset system time
@@ -85,19 +83,32 @@ void frequency_isr(void) {
 }
 
 /* read SPI data from MCP3008 chip, 8 possible adc channels (0 thru 7)
-int readadc(int adcChannel)
+int readAdc(int adcChannel)
 {
-    uint8_t buff[3];
+    uint8_t buffer[3];
     int adc;
     if ((adcChannel > 7) || (adcChannel < 0)) return -1;
 
-    buff[0] = 1;
-    buff[1] = (8+adcChannel)<<4;
-    buff[2] = 0;
+    buffe[0] = 1;
+    buffer[1] = (8 + adcChannel) << 4;
+    buffer[2] = 0;
     wiringPiSPIDataRW(0, buff, 3);
-    adc = ((buff[1] & 3) << 8) + buff[2];
-   return adc;
+    adc = ((buffer[1] & 3) << 8) + buffer[2];
+    return adc;
 }
+*/
+
+/*
+void writeDac(int data) {
+    if (data < 0) { data = 0; }
+    else if (data > 1023) { data = 1023; }
+
+    unsigned char upper = ((value >> 6) & 0xff) | 0b0 << 7 | 0b0 << 6 | 0b1 << 5 | 0b1 << 4;
+    unsigned char lower = value << 2 & 0b11111100;
+    wiringPiSPIDataRW(SPI_CHAN[1], upper, 1);
+    wiringPiSPIDataRW(SPI_CHAN[1], lower, 1);
+}
+
 */
 
 /**
@@ -147,13 +158,16 @@ void *monitorThread(void *threadargs){
 	// Calculate DAC Vout
 	int lightValue = analogRead(BASE + 1);
 	float dacVout = (lightValue / 1024.0) * humidity;
+	int dacValue = (int) (1024 * dacVout) / 3.3;
 
 	if ((dacVout < LOWER_LIMIT) || (dacVout > UPPER_LIMIT)) {
 	    if (!dismissed) {
 	        printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, "*");
+	        secPWM(dacValue);
 	    }
 	}
 	else {
+	    secPWM(0);
 	    printf("%-10s%-10s%-10.2f%-10.2f%-10d%-10.2f%-10s\n", curStr.c_str(), str.c_str(), humidity, temperature, lightValue, dacVout, " ");
 	}
 
@@ -162,6 +176,16 @@ void *monitorThread(void *threadargs){
     }
 
     pthread_exit(NULL);
+}
+
+/**
+ * PWM on the Seconds LED
+ * The LED should have 60 brightness levels
+ * The LED should be "off" at 0 seconds, and fully bright at 59 seconds
+ */
+void secPWM(int units){
+    softPwmCreate(SECS, 0, 1023);
+    softPwmWrite(SECS, units);
 }
 
 /**
@@ -200,7 +224,7 @@ int setup_gpio(void){
     printf("BUTTONS DONE\n");
 
     // Setting up the SPI interface
-    // Use SPI channel 0 and Clock speed
+    // Use SPI channel 0 for MCP30008 and Clock speed
     if (wiringPiSPISetup(SPI_CHAN, SPI_SPEED) == -1) {
         printf("Unable to setup SPI interface: %s\n", strerror(errno));
     }
@@ -210,7 +234,14 @@ int setup_gpio(void){
     mcp3004Setup(BASE, SPI_CHAN);
     printf("MCP3008 DONE\n");
 
+    //Set Up the Seconds LED (Wiring Pin 1) for PWM
+    if(softPwmCreate(SECS, 0, 1024) != 0){
+	printf("Unable to setup PWM: %s\n", strerror(errno));
+    }
+    pinMode(SECS, PWM_OUTPUT);
+
     pwmSetRange(60);
+    printf("PWM DONE\n");
 
     // Setting up the RTC
     RTC = wiringPiI2CSetup(RTCAddr);
