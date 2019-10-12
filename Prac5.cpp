@@ -7,7 +7,7 @@ using namespace std;
 // Define class variables
 bool monitoring = true;	        // If true, start  monitoring
 bool dismissed = false; 	// If true, alarm should stop
-bool reset = false;		// If true, clear console and system timer
+bool reset = true;		// If true, clear console and system timer
 
 int hours, mins, secs;
 int RTC; 			// Holds the RTC instance
@@ -28,7 +28,6 @@ int choice = 0;		        // Define frequency (0 = 1s, 1 = 2s and 2 = 3s)
 void start_stop_isr(void){
     long interruptTime = millis();
         if (interruptTime - lastInterruptTime > 200){
-        printf("Interrupt Control triggered\n");
         monitoring = !monitoring;
     }
     lastInterruptTime = interruptTime;
@@ -53,8 +52,10 @@ void dismiss_isr(void){
 void reset_isr(void) {
     long interruptTime = millis();
     if (interruptTime - lastInterruptTime > 200){
-	reset = !reset;
-	resetTimer();
+	// Set start time (0:00)
+        wiringPiI2CWriteReg8(RTC, HOUR, 0x0);
+        wiringPiI2CWriteReg8(RTC, MIN, 0x0);
+        wiringPiI2CWriteReg8(RTC, SEC, 0b10000000);
     }
     lastInterruptTime = interruptTime;
 }
@@ -122,6 +123,9 @@ void writeDac(int data) {
  */
 void *monitorThread(void *threadargs){
     for(;;){
+	
+	while (!monitoring) continue;
+	
         // Read from out from ADC
 	// Fetch the time from the RTC
 	HH = wiringPiI2CReadReg8(RTC, HOUR);
@@ -180,8 +184,9 @@ void *monitorThread(void *threadargs){
 
 /**
  * PWM on the Seconds LED
- * The LED should have 60 brightness levels
- * The LED should be "off" at 0 seconds, and fully bright at 59 seconds
+ * The LED should have 1024 brightness levels
+ * The LED should be "off" at 0 Volts, and fully bright at 3.3 Volts
+ *
  */
 void secPWM(int units){
     softPwmCreate(SECS, 0, 1023);
@@ -193,7 +198,7 @@ void secPWM(int units){
  *
  */
 int setup_gpio(void){
-     printf("SETTING UP\n");
+     //printf("SETTING UP\n");
 
     // Set up wiring Pi
     wiringPiSetup();
@@ -221,18 +226,18 @@ int setup_gpio(void){
     else if (wiringPiISR(FREQUENCY_BUTTON, INT_EDGE_RISING, &frequency_isr) < 0) {
         printf("Unable to setup frequency ISR: %s\n", strerror(errno));
     }
-    printf("BUTTONS DONE\n");
+    //printf("BUTTONS DONE\n");
 
     // Setting up the SPI interface
     // Use SPI channel 0 for MCP30008 and Clock speed
     if (wiringPiSPISetup(SPI_CHAN, SPI_SPEED) == -1) {
         printf("Unable to setup SPI interface: %s\n", strerror(errno));
     }
-    printf("SPI DONE\n");
+    //printf("SPI DONE\n");
 
     // Setting up the mcp3008 chip
     mcp3004Setup(BASE, SPI_CHAN);
-    printf("MCP3008 DONE\n");
+    //printf("MCP3008 DONE\n");
 
     //Set Up the Seconds LED (Wiring Pin 1) for PWM
     if(softPwmCreate(SECS, 0, 1024) != 0){
@@ -241,13 +246,13 @@ int setup_gpio(void){
     pinMode(SECS, PWM_OUTPUT);
 
     pwmSetRange(60);
-    printf("PWM DONE\n");
+    //printf("PWM DONE\n");
 
     // Setting up the RTC
     RTC = wiringPiI2CSetup(RTCAddr);
-    printf("RTC DONE\n");
+    //printf("RTC DONE\n");
 
-    printf("SETUP DONE\n");
+    //printf("SETUP DONE\n");
     return 0;
 }
 
@@ -270,7 +275,7 @@ int main(){
     pthread_attr_setschedparam (&tattr, &param); // Setting the new scheduling param
     pthread_create(&thread_id, &tattr, monitorThread, (void *)1); // with new priority specified
 
-    // Set random time (3:04PM)
+    // Set start time (0:00)
     wiringPiI2CWriteReg8(RTC, HOUR, 0x0);
     wiringPiI2CWriteReg8(RTC, MIN, 0x0);
     wiringPiI2CWriteReg8(RTC, SEC, 0b10000000);
