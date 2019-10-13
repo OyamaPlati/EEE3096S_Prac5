@@ -21,6 +21,10 @@ int lastAlarmHour = 0;
 int lastAlarmMin = 0;
 int lastAlarmSec = 0;
 
+int tempHour = 0;
+int tempMin = 0;
+int tempSec = 0;
+
 // Configure interrupts here
 // Use debouncing
 
@@ -60,6 +64,8 @@ void reset_isr(void) {
         wiringPiI2CWriteReg8(RTC, HOUR, 0x0);
         wiringPiI2CWriteReg8(RTC, MIN, 0x0);
         wiringPiI2CWriteReg8(RTC, SEC, 0b10000000);
+	system("clear");
+	printf("%-10s%-10s%-10s%-10s%-10s%-10s%-10s\n", "RTC Time", "Sys Timer", "Humidity", "Temp", "Light", "DAC Vout", "Alarm");
     }
     lastInterruptTime = interruptTime;
 }
@@ -99,7 +105,12 @@ void frequency_isr(void) {
 void *monitorThread(void *threadargs){
     for(;;){
 
-	while (!monitoring) continue;
+	while (!monitoring) { 
+		
+		
+        	continue; 
+	
+	}
 
         // Read from out from ADC
 	// Fetch the time from the RTC
